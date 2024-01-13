@@ -15,10 +15,11 @@ class AudioLibary(torch.utils.data.Dataset):
 
     def _init(self):
         self.paths = data.misc.get_path_list(self.root, self.max_size)
-        self.preprocess = transforms.Compose(
+        self.preprocess = transforms.Compose(  # TODO: check presentation
             [
+                # transforms.Resize(),
                 transforms.ToTensor(),
-                transforms.Normalize([0.5], [0.5]),
+                # transforms.Normalize([0.5], [0.5]),
             ]
         )
 
