@@ -32,9 +32,11 @@ def downsample_audio(audio, original_sr, target_sr):
     return librosa.resample(audio, orig_sr=original_sr, target_sr=target_sr)
 
 
-def audio_to_melspectrogram(audio, sampling_rate, hop_length=256, n_fft=2048):
+def audio_to_melspectrogram(
+    audio, sampling_rate, hop_length=256, n_fft=2048, n_mels=256
+):
     spectrogram = librosa.feature.melspectrogram(
-        y=audio, sr=sampling_rate, hop_length=hop_length, n_fft=n_fft
+        y=audio, sr=sampling_rate, hop_length=hop_length, n_fft=n_fft, n_mels=n_mels
     )
     spectrogram = librosa.power_to_db(spectrogram)
     spectrogram = spectrogram.astype(np.float32)

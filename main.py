@@ -13,7 +13,7 @@ from random import randint
 import utils.misc
 import models.misc
 
-from data.datasets import BalancedSampling
+from data.datasets import AudioLibary
 from trainer import Trainer
 
 
@@ -21,7 +21,9 @@ from trainer import Trainer
 
 
 def get_arguments():
-    parser = argparse.ArgumentParser(description="Facial attributes classification")
+    parser = argparse.ArgumentParser(
+        description="Audio anomaly detection by autoencoders"
+    )
     parser.add_argument(
         "--device", default="cuda", help='device assignment ("cpu" or "cuda")'
     )
@@ -33,17 +35,15 @@ def get_arguments():
         help="device ids assignment (e.g 0 1 2 3)",
     )
     parser.add_argument(
-        "--model-config", default="", help="additional architecture configuration"
-    )
-    parser.add_argument(
         "--model-to-load",
         default=None,
         type=str,
         help="additional architecture configuration",
     )
-    parser.add_argument("--train-pkl", default="", type=str, required=True, help="")
-    parser.add_argument("--test-pkl", default="", type=str, required=True, help="")
-    parser.add_argument("--root-images", default="", type=str, required=True, help="")
+    parser.add_argument("--root-train", default="", type=str, required=True, help="")
+    parser.add_argument("--root-test", default="", type=str, required=True, help="")
+    parser.add_argument("--sampling-rate", default=8000, type=int, help="")
+    parser.add_argument("--segment-size", default=8000, type=int, help="")
     parser.add_argument("--max-size", default=None, type=int, help="")
     parser.add_argument(
         "--num-workers", default=4, type=int, help="number of workers (default: 4)"
@@ -122,13 +122,12 @@ def main():
             sum([l.nelement() for l in model.parameters()])
         )
     )
-
     # loaders
-    dataset_train = BalancedSampling(
-        args.train_pkl, args.root_images, True, args.max_size
+    dataset_train = AudioLibary(
+        args.root_train, args.sampling_rate, args.segment_size, args.max_size
     )
-    dataset_eval = BalancedSampling(
-        args.test_pkl, args.root_images, False, args.max_size
+    dataset_eval = AudioLibary(
+        args.root_test, args.sampling_rate, args.segment_size, args.max_size
     )
 
     loader_train = torch.utils.data.DataLoader(

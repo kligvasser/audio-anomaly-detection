@@ -7,18 +7,26 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
-from sklearn.metrics import multilabel_confusion_matrix, precision_recall_curve, roc_curve, auc
+from sklearn.metrics import (
+    multilabel_confusion_matrix,
+    precision_recall_curve,
+    roc_curve,
+    auc,
+)
 
 
 class RecoderX:
     def __init__(self, log_dir):
         self.log_dir = log_dir
         self.writer = SummaryWriter(logdir=log_dir)
-        self.log = ''
+        self.log = ""
 
     def add_scalar(self, tag, scalar_value, global_step=None, walltime=None):
         self.writer.add_scalar(
-            tag=tag, scalar_value=scalar_value, global_step=global_step, walltime=walltime
+            tag=tag,
+            scalar_value=scalar_value,
+            global_step=global_step,
+            walltime=walltime,
         )
 
     def add_scalars(self, main_tag, tag_scalar_dict, global_step=None, walltime=None):
@@ -29,7 +37,9 @@ class RecoderX:
             walltime=walltime,
         )
 
-    def add_image(self, tag, img_tensor, global_step=None, walltime=None, dataformats='CHW'):
+    def add_image(
+        self, tag, img_tensor, global_step=None, walltime=None, dataformats="CHW"
+    ):
         self.writer.add_image(
             tag=tag,
             img_tensor=img_tensor,
@@ -45,10 +55,53 @@ class RecoderX:
         self.writer.add_histogram(tag, values, global_step)
 
     def add_figure(self, tag, figure, global_step=None, close=True, walltime=None):
-        self.writer.add_figure(tag, figure, global_step=global_step, close=close, walltime=walltime)
+        self.writer.add_figure(
+            tag, figure, global_step=global_step, close=close, walltime=walltime
+        )
 
     def export_json(self, out_file):
         self.writer.export_scalars_to_json(out_file)
+
+    def plot_spectograms(
+        self,
+        tag,
+        spectograms,
+        sample_rate=8000,
+        global_step=None,
+        figsize=(20, 20),
+    ):
+        batch_size, num_channels, num_frames, num_mels = spectograms.shape
+
+        assert (
+            num_channels == 1
+        ), "This function assumes single-channel mel spectrograms"
+
+        time_axis = np.arange(0, num_frames) / (sample_rate / 2)
+
+        fig, ax = plt.subplots(batch_size // 4, 4, figsize=figsize, dpi=200)
+        canvas = FigureCanvasAgg(fig)
+
+        for i, axes in enumerate(ax.flatten()):
+            spec = plt.imshow(
+                spectograms[i, 0],
+                aspect="auto",
+                origin="lower",
+                cmap="viridis",
+                extent=[0, time_axis[-1], 0, num_mels],
+                ax=axes,
+            )
+            axes.xlabel("Time (s)")
+            axes.ylabel("Hz")
+            fig.tight_layout()
+
+        canvas.draw()
+
+        image_as_string = np.frombuffer(canvas.tostring_rgb(), dtype="uint8")
+        target_shape = canvas.get_width_height()[::-1] + (3,)
+        reshaped_image = image_as_string.reshape(target_shape)
+        self.writer.add_image(
+            tag, reshaped_image, dataformats="HWC", global_step=global_step
+        )
 
     def plot_multi_confusion_matrices(
         self,
@@ -59,7 +112,9 @@ class RecoderX:
         global_step=None,
         figsize=(20, 20),
     ):
-        def _plot_confusion_matrix(confusion_matrix, axes, class_label, class_names, fontsize=12):
+        def _plot_confusion_matrix(
+            confusion_matrix, axes, class_label, class_names, fontsize=12
+        ):
             df_cm = pd.DataFrame(
                 confusion_matrix,
                 index=class_names,
@@ -73,17 +128,25 @@ class RecoderX:
 
             heat_map = sns.heatmap(df_cm, annot=True, fmt="d", cbar=False, ax=axes)
             heat_map.yaxis.set_ticklabels(
-                heat_map.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=fontsize
+                heat_map.yaxis.get_ticklabels(),
+                rotation=0,
+                ha="right",
+                fontsize=fontsize,
             )
             heat_map.xaxis.set_ticklabels(
-                heat_map.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=fontsize
+                heat_map.xaxis.get_ticklabels(),
+                rotation=45,
+                ha="right",
+                fontsize=fontsize,
             )
-            axes.set_ylabel('True label')
-            axes.set_xlabel('Predicted label')
-            axes.set_title('{}: {:.2f}'.format(class_label, accuracy))
+            axes.set_ylabel("True label")
+            axes.set_xlabel("Predicted label")
+            axes.set_title("{}: {:.2f}".format(class_label, accuracy))
 
         cm = multilabel_confusion_matrix(true_labels, predicted_labels)
-        fig, ax = plt.subplots(int(np.ceil(len(naming_labels) / 4)), 4, figsize=figsize, dpi=200)
+        fig, ax = plt.subplots(
+            int(np.ceil(len(naming_labels) / 4)), 4, figsize=figsize, dpi=200
+        )
         canvas = FigureCanvasAgg(fig)
 
         for axes, cfs_matrix, label in zip(ax.flatten(), cm, naming_labels):
@@ -92,10 +155,12 @@ class RecoderX:
 
         canvas.draw()
 
-        image_as_string = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+        image_as_string = np.frombuffer(canvas.tostring_rgb(), dtype="uint8")
         target_shape = canvas.get_width_height()[::-1] + (3,)
         reshaped_image = image_as_string.reshape(target_shape)
-        self.writer.add_image(tag, reshaped_image, dataformats="HWC", global_step=global_step)
+        self.writer.add_image(
+            tag, reshaped_image, dataformats="HWC", global_step=global_step
+        )
 
     def plot_multi_precision_recall_curves(
         self,
@@ -111,13 +176,15 @@ class RecoderX:
             f1_idx = np.nanargmax(f1)
 
             axes.plot(rec, prc)
-            axes.set_ylabel('Precision')
-            axes.set_xlabel('Recall')
-            axes.set_title('{} - F1: {:.2f}'.format(class_label, f1[f1_idx]))
+            axes.set_ylabel("Precision")
+            axes.set_xlabel("Recall")
+            axes.set_title("{} - F1: {:.2f}".format(class_label, f1[f1_idx]))
 
         fig, ax = plt.subplots(int(np.ceil(len(naming_labels) / 4)), 4, figsize=figsize)
         canvas = FigureCanvasAgg(fig)
-        for axes, label, idx in zip(ax.flatten(), naming_labels, np.arange(len(naming_labels))):
+        for axes, label, idx in zip(
+            ax.flatten(), naming_labels, np.arange(len(naming_labels))
+        ):
             prc, rec, _ = precision_recall_curve(
                 true_labels[:, idx], predicted_probabilities[:, idx]
             )
@@ -126,10 +193,12 @@ class RecoderX:
 
         canvas.draw()
 
-        image_as_string = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+        image_as_string = np.frombuffer(canvas.tostring_rgb(), dtype="uint8")
         target_shape = canvas.get_width_height()[::-1] + (3,)
         reshaped_image = image_as_string.reshape(target_shape)
-        self.writer.add_image(tag, reshaped_image, dataformats="HWC", global_step=global_step)
+        self.writer.add_image(
+            tag, reshaped_image, dataformats="HWC", global_step=global_step
+        )
 
     def plot_multi_roc_curves(
         self,
@@ -142,23 +211,29 @@ class RecoderX:
     ):
         def _plot_roc_curve(fpr, tpr, axes, class_label):
             axes.plot(fpr, tpr)
-            axes.set_ylabel('True Positive')
-            axes.set_xlabel('False Positive')
-            axes.set_title('{} - AUC: {:.2f}'.format(class_label, auc(fpr, tpr)))
+            axes.set_ylabel("True Positive")
+            axes.set_xlabel("False Positive")
+            axes.set_title("{} - AUC: {:.2f}".format(class_label, auc(fpr, tpr)))
 
         fig, ax = plt.subplots(int(np.ceil(len(naming_labels) / 4)), 4, figsize=figsize)
         canvas = FigureCanvasAgg(fig)
-        for axes, label, idx in zip(ax.flatten(), naming_labels, np.arange(len(naming_labels))):
-            fpr, tpr, thr = roc_curve(true_labels[:, idx], predicted_probabilities[:, idx])
+        for axes, label, idx in zip(
+            ax.flatten(), naming_labels, np.arange(len(naming_labels))
+        ):
+            fpr, tpr, thr = roc_curve(
+                true_labels[:, idx], predicted_probabilities[:, idx]
+            )
             _plot_roc_curve(fpr, tpr, axes, label)
             fig.tight_layout()
 
         canvas.draw()
 
-        image_as_string = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+        image_as_string = np.frombuffer(canvas.tostring_rgb(), dtype="uint8")
         target_shape = canvas.get_width_height()[::-1] + (3,)
         reshaped_image = image_as_string.reshape(target_shape)
-        self.writer.add_image(tag, reshaped_image, dataformats="HWC", global_step=global_step)
+        self.writer.add_image(
+            tag, reshaped_image, dataformats="HWC", global_step=global_step
+        )
 
     def close(self):
         self.writer.close()

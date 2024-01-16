@@ -118,6 +118,13 @@ class VGGAutoencoder(nn.Module):
         return decoded
 
 
+def vgg_autoencoder(**config):
+    config.setdefault("in_channels", 1)
+    config.setdefault("num_channels", [64, 128, 256, 512, 512])
+
+    return VGGAutoencoder(**config)
+
+
 if __name__ == "__main__":
     import torch
 

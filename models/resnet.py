@@ -506,6 +506,12 @@ class ResnetAutoencoder(nn.Module):
         return decoded
 
 
+def resnet_autoencoder(**config):
+    config.setdefault("num_layers", [3, 3, 3, 3, 3])
+
+    return ResnetAutoencoder(**config)
+
+
 if __name__ == "__main__":
     import torch
 

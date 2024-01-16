@@ -4,11 +4,17 @@ from torchvision import transforms
 import data.misc
 
 
+SEGMENT_SIZE = 1024 * 8
+HOP_LENGHT = SEGMENT_SIZE // 256
+
+
 class AudioLibary(torch.utils.data.Dataset):
-    def __init__(self, root="", sampling_rate=8000, segment_length=10, max_size=None):
+    def __init__(
+        self, root="", sampling_rate=8000, segment_size=SEGMENT_SIZE, max_size=None
+    ):
         self.root = root
         self.sampling_rate = sampling_rate
-        self.segment_size = segment_length * sampling_rate
+        self.segment_size = segment_size
         self.max_size = max_size
 
         self._init()
@@ -31,7 +37,9 @@ class AudioLibary(torch.utils.data.Dataset):
             sampling_rate = self.sampling_rate
 
         audio = data.misc.cut_random_segment(audio, self.segment_size)
-        spectrogram = data.misc.audio_to_melspectrogram(audio, sampling_rate)
+        spectrogram = data.misc.audio_to_melspectrogram(
+            audio, sampling_rate, hop_length=HOP_LENGHT
+        )
 
         spectrogram = self.preprocess(spectrogram)
         return spectrogram
@@ -40,7 +48,7 @@ class AudioLibary(torch.utils.data.Dataset):
         example = dict()
 
         path = self.paths[index]
-        example["image"] = self.preprocess_image(path)
+        example["input"] = self.preprocess_audio(path)
         example["path"] = path
 
         return example
