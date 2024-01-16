@@ -123,12 +123,12 @@ class Trainer:
                 inputs, predictions = self.eval_step(data)
 
         self.writer.plot_spectograms(
-            "spectograms/inputs", inputs.cpu().numpy(), self.args.sample_rate, epoch
+            "spectograms/inputs", inputs.cpu().numpy(), self.args.sampling_rate, epoch
         )
         self.writer.plot_spectograms(
             "spectograms/predictions",
             predictions.cpu().numpy(),
-            self.args.sample_rate,
+            self.args.sampling_rate,
             epoch,
         )
 

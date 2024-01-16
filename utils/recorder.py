@@ -81,19 +81,19 @@ class RecoderX:
         fig, ax = plt.subplots(batch_size // 4, 4, figsize=figsize, dpi=200)
         canvas = FigureCanvasAgg(fig)
 
-        for i, axes in enumerate(ax.flatten()):
-            spec = plt.imshow(
+        ax = ax.flatten()
+        for i in range(batch_size):
+            ax[i].imshow(
                 spectograms[i, 0],
                 aspect="auto",
                 origin="lower",
                 cmap="viridis",
                 extent=[0, time_axis[-1], 0, num_mels],
-                ax=axes,
             )
-            axes.xlabel("Time (s)")
-            axes.ylabel("Hz")
-            fig.tight_layout()
+            ax[i].set_xlabel("Time (s)")
+            ax[i].set_ylabel("Hz")
 
+        fig.tight_layout()
         canvas.draw()
 
         image_as_string = np.frombuffer(canvas.tostring_rgb(), dtype="uint8")
