@@ -25,7 +25,7 @@ def get_arguments():
         description="Audio anomaly detection by autoencoders"
     )
     parser.add_argument(
-        "--device", default="cuda", help='device assignment ("cpu" or "cuda")'
+        "--device", default="cpu", help='device assignment ("cpu" or "cuda")'
     )
     parser.add_argument(
         "--device-ids",
@@ -42,8 +42,10 @@ def get_arguments():
     )
     parser.add_argument("--root-train", default="", type=str, required=True, help="")
     parser.add_argument("--root-test", default="", type=str, required=True, help="")
+    parser.add_argument("--model", default="vgg_autoencoder", help="")
+    parser.add_argument("--model-config", default="", help="")
     parser.add_argument("--sampling-rate", default=8000, type=int, help="")
-    parser.add_argument("--segment-size", default=8000, type=int, help="")
+    # parser.add_argument("--segment-size", default=8192, type=int, help="")
     parser.add_argument("--max-size", default=None, type=int, help="")
     parser.add_argument(
         "--num-workers", default=4, type=int, help="number of workers (default: 4)"
@@ -51,7 +53,7 @@ def get_arguments():
     parser.add_argument(
         "--batch-size", default=128, type=int, help="batch-size (default: 128)"
     )
-    parser.add_argument("--epochs", default=5, type=int, help="")
+    parser.add_argument("--epochs", default=10, type=int, help="")
     parser.add_argument("--lr", default=1e-4, type=float, help="lr (default: 1e-4)")
     parser.add_argument(
         "--betas",
@@ -124,10 +126,10 @@ def main():
     )
     # loaders
     dataset_train = AudioLibary(
-        args.root_train, args.sampling_rate, args.segment_size, args.max_size
+        root=args.root_train, sampling_rate=args.sampling_rate, max_size=args.max_size
     )
     dataset_eval = AudioLibary(
-        args.root_test, args.sampling_rate, args.segment_size, args.max_size
+        root=args.root_test, sampling_rate=args.sampling_rate, max_size=args.max_size
     )
 
     loader_train = torch.utils.data.DataLoader(

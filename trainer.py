@@ -30,7 +30,7 @@ class Trainer:
             self.optimizer, step_size=self.args.step_size, gamma=self.args.gamma
         )
 
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.L1Loss()
         self.losses = {
             "train": defaultdict(list),
             "eval": defaultdict(list),

@@ -10,11 +10,17 @@ HOP_LENGHT = SEGMENT_SIZE // 256
 
 class AudioLibary(torch.utils.data.Dataset):
     def __init__(
-        self, root="", sampling_rate=8000, segment_size=SEGMENT_SIZE, max_size=None
+        self,
+        root="",
+        sampling_rate=8000,
+        segment_size=SEGMENT_SIZE,
+        hop_length=HOP_LENGHT,
+        max_size=None,
     ):
         self.root = root
         self.sampling_rate = sampling_rate
         self.segment_size = segment_size
+        self.hop_length = hop_length
         self.max_size = max_size
 
         self._init()
@@ -36,9 +42,9 @@ class AudioLibary(torch.utils.data.Dataset):
             audio = data.misc.downsample_audio(audio, sampling_rate, self.sampling_rate)
             sampling_rate = self.sampling_rate
 
-        audio = data.misc.cut_random_segment(audio, self.segment_size)
+        audio = data.misc.cut_random_segment(audio, self.segment_size - 1)
         spectrogram = data.misc.audio_to_melspectrogram(
-            audio, sampling_rate, hop_length=HOP_LENGHT
+            audio, sampling_rate, hop_length=self.hop_length
         )
 
         spectrogram = self.preprocess(spectrogram)
