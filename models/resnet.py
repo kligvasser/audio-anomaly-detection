@@ -1,12 +1,10 @@
-from typing import Any, Callable, List, Optional, Type, Union
+from typing import Callable, List, Optional
 
 import torch.nn as nn
 from torch import Tensor
 
 
-"""
-Modified from https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
-"""
+CODE_NUM_CHANNELS = 2
 
 
 def conv3x3(
@@ -231,12 +229,12 @@ class DecBottleneck(nn.Module):
         return out
 
 
-class EncResNet(nn.Module):
+class Encoder(nn.Module):
     def __init__(
         self,
         block,
         layers: List[int],
-        num_classes: int = 1000,
+        in_channel: int = 3,
         zero_init_residual: bool = False,
         groups: int = 1,
         width_per_group: int = 64,
@@ -262,11 +260,11 @@ class EncResNet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
         self.conv1 = nn.Conv2d(
-            3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False
+            in_channel, self.inplanes, kernel_size=7, stride=2, padding=3
         )
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(
             block, 128, layers[1], stride=2, dilate=replace_stride_with_dilation[0]
@@ -277,9 +275,18 @@ class EncResNet(nn.Module):
         self.layer4 = self._make_layer(
             block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2]
         )
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        self.layer5 = self._make_layer(
+            block, 512, layers[4], stride=2, dilate=replace_stride_with_dilation[2]
+        )
+
+        self.code_conv = nn.Conv2d(
+            self.inplanes,
+            CODE_NUM_CHANNELS,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+        )
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -288,9 +295,6 @@ class EncResNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-        # Zero-initialize the last BN in each residual branch,
-        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
-        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
         if zero_init_residual:
             for m in self.modules():
                 if isinstance(m, Bottleneck) and m.bn3.weight is not None:
@@ -351,28 +355,28 @@ class EncResNet(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
 
-        x = self.maxpool(x)
-
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
+        x = self.layer5(x)
 
-        x = self.avgpool(x)
+        x = self.code_conv(x)
+
         return x
 
 
-class DecResNet(nn.Module):
+class Decoder(nn.Module):
     def __init__(
         self,
         block,
         layers: List[int],
+        out_channel: int = 3,
         zero_init_residual: bool = False,
         groups: int = 1,
         width_per_group: int = 64,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-        # indices = None,
-    ) -> None:
+    ):
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -383,14 +387,12 @@ class DecResNet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
         self.de_conv1 = nn.ConvTranspose2d(
-            64, 3, kernel_size=7, stride=2, padding=3, bias=False
+            64, out_channel, kernel_size=8, stride=2, padding=3
         )
-        self.unpool = nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1)
-        self.bn1 = norm_layer(3)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.unsample = nn.Upsample(size=7, mode="nearest")
 
+        self.layer5 = self._make_layer(
+            block, 512, layers[4], stride=2, last_block_dim=512 * block.expansion
+        )
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
@@ -398,7 +400,13 @@ class DecResNet(nn.Module):
             block, 64, layers[0], output_padding=0, last_block_dim=64
         )
 
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.code_conv = nn.Conv2d(
+            CODE_NUM_CHANNELS,
+            512 * block.expansion,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+        )
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -425,7 +433,7 @@ class DecResNet(nn.Module):
         stride: int = 1,
         output_padding: int = 1,
         last_block_dim: int = 0,
-    ) -> nn.Sequential:
+    ):
         norm_layer = self._norm_layer
         upsample = None
         previous_dilation = self.dilation
@@ -472,42 +480,40 @@ class DecResNet(nn.Module):
         layers.append(last_block)
         return nn.Sequential(*layers)
 
-    def _forward_impl(self, x: Tensor, indices) -> Tensor:
-        # See note [TorchScript super()]
-        x = self.unsample(x)
+    def forward(self, x):
+        x = self.code_conv(x)
+
+        x = self.layer5(x)
         x = self.layer4(x)
         x = self.layer3(x)
         x = self.layer2(x)
         x = self.layer1(x)
 
-        # print(x.shape)
-        x = self.unpool(x, indices)
         x = self.de_conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
+
         return x
 
-    def _forward_cnns_only(self, x: Tensor) -> Tensor:
-        # See note [TorchScript super()]
-        x = self.unsample(x)
-        x = self.layer4(x)
-        x = self.layer3(x)
-        x = self.layer2(x)
-        x = self.layer1(x)
-        return x
 
-    def forward(self, x: Tensor, indices=None) -> Tensor:
-        if indices is None:
-            return self._forward_cnns_only(x)
-        return self._forward_impl(x, indices)
+class ResnetAutoencoder(nn.Module):
+    def __init__(self, num_layers=[3, 3, 3, 3, 3]):
+        super().__init__()
+        self.encoder = Encoder(Bottleneck, num_layers)
+        self.decoder = Decoder(DecBottleneck, num_layers)
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
 
 
 if __name__ == "__main__":
     import torch
 
-    enc = EncResNet(Bottleneck, [3, 4, 23, 3])
-    dec = DecResNet(DecBottleneck, [3, 23, 4, 3])
+    enc = Encoder(Bottleneck, [3, 3, 3, 3, 3])
+    dec = Decoder(DecBottleneck, [3, 3, 3, 3, 3])
 
-    x = torch.rand(2, 3, 221, 221)
+    x = torch.rand(2, 3, 256, 256)
     y = enc(x)
-    x = dec(y)
+    xx = dec(y)
+
+    print(xx.size())
